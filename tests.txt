@@ -1,0 +1,6 @@
+<testsuite name="com.koala.vinoala.ModelTest" tests="5" skipped="0" failures="0" errors="0" timestamp="2026-11-01T13:42:21.846Z" hostname="runnervmnwato" time="0.093">
+<testcase name="apogee"
+<testcase name="offParse"
+<testcase name="roundTrip"
+<testcase name="ean"
+<testcase name="notes"
