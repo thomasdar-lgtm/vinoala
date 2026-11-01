@@ -114,6 +114,31 @@ class Repo private constructor(private val ctx: Context) {
     fun known(code: String): List<Bottle> =
         _state.value.bottles.filter { it.codeBarres == code }.sortedByDescending { it.creeLe }
 
+    /** Fiches + miniatures. Les grandes photos restent dans Firebase. */
+    fun exportJson(): String {
+        val arr = JSONArray()
+        _state.value.bottles.forEach { b -> arr.put(JSONObject(b.toMap()).put("id", b.id)) }
+        return JSONObject().put("app", "vinoala").put("version", 1).put("bouteilles", arr).toString()
+    }
+
+    /** Ajoute les bouteilles absentes et met à jour celles qui sont plus récentes dans le fichier. */
+    fun importJson(text: String): Int {
+        val t = text.trim()
+        val arr = if (t.startsWith("[")) JSONArray(t) else JSONObject(t).getJSONArray("bouteilles")
+        val current = _state.value.bottles.associateBy { it.id }
+        var n = 0
+        for (i in 0 until arr.length()) {
+            val o = arr.getJSONObject(i)
+            val id = o.optString("id")
+            if (id.isBlank()) continue
+            val m = o.keys().asSequence().associateWith { k -> o.get(k) }
+            val b = Bottle.fromMap(id, m)
+            val cur = current[id]
+            if (cur == null || b.majLe > cur.majLe) { bottles.document(id).set(b.toMap()); n++ }
+        }
+        return n
+    }
+
     private fun writeBackup(list: List<Bottle>) = runCatching {
         val arr = JSONArray()
         list.forEach { b -> arr.put(JSONObject(b.toMap()).put("id", b.id)) }

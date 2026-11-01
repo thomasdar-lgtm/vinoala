@@ -2,6 +2,15 @@ package com.koala.vinoala
 
 import android.content.Context
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.IconButton
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -198,6 +207,7 @@ fun LoginScreen(repo: Repo, onDone: () -> Unit) {
 
 @Composable
 fun HomeScreen(
+    repo: Repo,
     state: CaveState,
     upd: UpdateState,
     tab: Int,
@@ -208,6 +218,24 @@ fun HomeScreen(
 ) {
     var query by rememberSaveable { mutableStateOf("") }
     var menu by remember { mutableStateOf(false) }
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val scope = rememberCoroutineScope()
+    val exporter = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri != null) scope.launch {
+            val ok = runCatching { withContext(Dispatchers.IO) {
+                ctx.contentResolver.openOutputStream(uri)!!.use { it.write(repo.exportJson().toByteArray()) }
+            } }.isSuccess
+            toast(ctx, if (ok) "Sauvegarde enregistrée (${state.bottles.size} bouteilles)" else "Sauvegarde impossible")
+        }
+    }
+    val importer = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) scope.launch {
+            val n = runCatching { withContext(Dispatchers.IO) {
+                repo.importJson(ctx.contentResolver.openInputStream(uri)!!.use { it.readBytes().decodeToString() })
+            } }.getOrNull()
+            toast(ctx, if (n == null) "Fichier de sauvegarde illisible" else "$n bouteille${if (n > 1) "s" else ""} restaurée${if (n > 1) "s" else ""}")
+        }
+    }
     val cave = state.bottles.filter { !it.drunk }
     val bues = state.bottles.filter { it.drunk }
     val q = norm(query.trim())
@@ -226,9 +254,26 @@ fun HomeScreen(
                 if (state.pending) Text("synchro en attente", color = Orange, fontSize = 11.sp)
                 Spacer(Modifier.weight(1f))
                 Box {
-                    TextButton(onClick = { menu = true }) { Text("v${BuildConfig.VERSION_NAME}", color = Muted, fontSize = 12.sp) }
+                    IconButton(onClick = { menu = true }) { Icon(Icons.Default.MoreVert, "Menu", tint = Color.White) }
                     DropdownMenu(menu, { menu = false }) {
+                        DropdownMenuItem(text = { Text("Sauvegarder la cave") }, onClick = {
+                            menu = false
+                            exporter.launch("vinoala-${SimpleDateFormat("yyyy-MM-dd", Locale.FRANCE).format(Date())}.json")
+                        })
+                        DropdownMenuItem(text = { Text("Restaurer une sauvegarde") }, onClick = {
+                            menu = false
+                            importer.launch(arrayOf("application/json", "application/octet-stream", "text/plain", "*/*"))
+                        })
+                        DropdownMenuItem(text = { Text("Rechercher une mise à jour") }, onClick = {
+                            menu = false
+                            scope.launch {
+                                runCatching { Updater.check() }
+                                    .onSuccess { i -> upd.info = i; if (i == null) toast(ctx, "Vinoala est à jour (${BuildConfig.VERSION_NAME})") }
+                                    .onFailure { toast(ctx, "Pas de connexion, réessaie plus tard") }
+                            }
+                        })
                         DropdownMenuItem(text = { Text("Se déconnecter") }, onClick = { menu = false; onSignOut() })
+                        DropdownMenuItem(text = { Text("Version ${BuildConfig.VERSION_NAME}") }, onClick = {}, enabled = false)
                     }
                 }
             }

@@ -73,7 +73,7 @@ fun App(repo: Repo) {
     Box(Modifier.fillMaxSize()) {
         when (val s = screen) {
             Screen.Home -> HomeScreen(
-                state, upd, tab, { tab = it },
+                repo, state, upd, tab, { tab = it },
                 onOpen = { screen = Screen.Detail(it) },
                 onScan = { screen = Screen.Scan },
                 onSignOut = { repo.signOut(); signedIn = false },
