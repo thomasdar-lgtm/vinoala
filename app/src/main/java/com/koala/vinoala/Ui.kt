@@ -54,6 +54,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -107,13 +108,20 @@ fun apogeeColor(a: Apogee): Color = when (a) {
 private fun norm(s: String) = Normalizer.normalize(s, Normalizer.Form.NFD).replace(Regex("\\p{M}"), "").lowercase()
 
 @Composable
-fun Logo(size: Int = 26) = Text(
-    buildAnnotatedString {
-        withStyle(SpanStyle(color = Color(0xFFD23A5E))) { append("Vin") }
-        withStyle(SpanStyle(color = Yellow)) { append("oala") }
-    },
-    fontWeight = FontWeight.Black, fontSize = size.sp,
-)
+fun Logo(size: Int = 26) = Row(verticalAlignment = Alignment.CenterVertically) {
+    Image(
+        painterResource(R.drawable.logo), null,
+        Modifier.size((size * 1.6f).dp).clip(RoundedCornerShape((size * 0.35f).dp)),
+    )
+    Spacer(Modifier.width((size * 0.35f).dp))
+    Text(
+        buildAnnotatedString {
+            withStyle(SpanStyle(color = Color(0xFFD23A5E))) { append("Vin") }
+            withStyle(SpanStyle(color = Yellow)) { append("oala") }
+        },
+        fontWeight = FontWeight.Black, fontSize = size.sp,
+    )
+}
 
 @Composable
 fun Thumb(b64: String, couleur: String, size: Int = 56) {
