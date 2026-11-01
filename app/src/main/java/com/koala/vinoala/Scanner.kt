@@ -77,6 +77,8 @@ private class BarcodeAnalyzer(
         ).build()
     )
     @Volatile private var done = false
+    private var last: String? = null
+    private var hits = 0
 
     @OptIn(ExperimentalGetImage::class)
     override fun analyze(proxy: ImageProxy) {
@@ -85,9 +87,12 @@ private class BarcodeAnalyzer(
         val img = InputImage.fromMediaImage(media, proxy.imageInfo.rotationDegrees)
         scanner.process(img).addOnCompleteListener { t ->
             onReady(t.isSuccessful)
-            val code = if (t.isSuccessful) t.result.firstOrNull { !it.rawValue.isNullOrBlank() }?.rawValue else null
+            // Ne garde qu'un code-barres valide (chiffre de contrôle), lu à l'identique sur 3 images
+            val code = if (t.isSuccessful) t.result.mapNotNull { it.rawValue?.trim() }.firstOrNull { Ean.valid(it) } else null
             proxy.close()
-            if (code != null && !done) { done = true; onFound(code.trim()) }
+            if (code == null || done) return@addOnCompleteListener
+            if (code == last) hits++ else { last = code; hits = 1 }
+            if (hits >= 3) { done = true; onFound(code) }
         }
     }
 

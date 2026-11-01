@@ -76,3 +76,18 @@ object Off {
         return t.removePrefix("fr:").split("-").joinToString(" ") { w -> w.replaceFirstChar { it.uppercase() } }
     }
 }
+
+/** Codes-barres des produits (EAN-13, EAN-8, UPC-A, UPC-E) : vérifie le chiffre de contrôle. */
+object Ean {
+    fun valid(code: String): Boolean {
+        if (!code.all { it.isDigit() }) return false
+        val d = when (code.length) {
+            8, 12, 13 -> code
+            else -> return false
+        }
+        var sum = 0
+        val body = d.dropLast(1).reversed()
+        body.forEachIndexed { i, c -> sum += (c - '0') * (if (i % 2 == 0) 3 else 1) }
+        return (10 - sum % 10) % 10 == d.last() - '0'
+    }
+}

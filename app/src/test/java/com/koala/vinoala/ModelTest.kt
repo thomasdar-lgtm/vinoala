@@ -27,6 +27,15 @@ class ModelTest {
         assertEquals(9.0, Bottle(note = "9", noteThomas = "6").score()!!, 0.001)
     }
 
+    @Test fun ean() {
+        org.junit.Assert.assertTrue(Ean.valid("3017620422003"))
+        org.junit.Assert.assertTrue(Ean.valid("96385074"))
+        org.junit.Assert.assertTrue(Ean.valid("036000291452"))
+        org.junit.Assert.assertFalse(Ean.valid("3017620422004"))
+        org.junit.Assert.assertFalse(Ean.valid("12345"))
+        org.junit.Assert.assertFalse(Ean.valid("ABCDEFGH"))
+    }
+
     @Test fun offParse() {
         val json = """{"status":1,"product":{"product_name_fr":"Château Machin 2019","brands":"Château Machin, Vignobles X",
             "quantity":"75 cl","categories_tags":["en:wines","en:red-wines","fr:saint-emilion-grand-cru"],
