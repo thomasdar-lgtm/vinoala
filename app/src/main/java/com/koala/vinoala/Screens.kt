@@ -29,6 +29,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
@@ -154,6 +155,14 @@ fun DetailScreen(
                 InfoLine("Contenance", b.contenance)
                 InfoLine("Code-barres", b.codeBarres)
             }
+            if (b.ailleurs) Section("Bue ailleurs") {
+                InfoLine("Où", b.lieu)
+                InfoLine("Prix", if (b.prix.isBlank()) "" else "${b.prix} €")
+            } else Section("Achat") {
+                InfoLine("Prix", if (b.prix.isBlank()) "" else "${b.prix} €")
+                InfoLine("Lieu", b.lieu)
+                InfoLine("Date", b.dateAchat.ifBlank { "inconnue" })
+            }
             if (listOf(b.gardeDe, b.gardeA, b.temperature, b.accords).any { it.isNotBlank() }) Section("Garde et service") {
                 InfoLine("À boire", when {
                     b.gardeDe.isNotBlank() && b.gardeA.isNotBlank() -> "de ${b.gardeDe} à ${b.gardeA}"
@@ -163,11 +172,6 @@ fun DetailScreen(
                 })
                 InfoLine("Température", if (b.temperature.isBlank()) "" else "${b.temperature} °C")
                 InfoLine("Accords", b.accords)
-            }
-            if (listOf(b.prix, b.lieu, b.dateAchat).any { it.isNotBlank() }) Section("Achat") {
-                InfoLine("Prix", if (b.prix.isBlank()) "" else "${b.prix} €")
-                InfoLine("Lieu", b.lieu)
-                InfoLine("Date", b.dateAchat)
             }
             Spacer(Modifier.height(90.dp))
         }
@@ -285,6 +289,36 @@ fun EditScreen(
                     Field("Code-barres", b.codeBarres, Modifier.weight(1f), number = true) { b = b.copy(codeBarres = it) }
                 }
             }
+            Section("Provenance") {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = !b.ailleurs, onClick = { b = b.copy(origine = "") },
+                        label = { Text("Achetée") },
+                    )
+                    FilterChip(
+                        selected = b.ailleurs,
+                        onClick = { b = b.copy(origine = Bottle.AILLEURS, dateBue = b.dateBue.ifBlank { Bottle.today() }) },
+                        label = { Text("Bue ailleurs") },
+                    )
+                }
+                if (!b.ailleurs) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Field("Prix €", b.prix, Modifier.weight(1f), decimal = true) { b = b.copy(prix = it) }
+                        DateField("Date d'achat", b.dateAchat, Modifier.weight(1f)) { b = b.copy(dateAchat = it) }
+                    }
+                    Field("Lieu d'achat", b.lieu) { b = b.copy(lieu = it) }
+                    if (isNew) Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Nombre de bouteilles", modifier = Modifier.weight(1f))
+                        Stepper(count) { count = it }
+                    }
+                } else {
+                    Field("Restaurant ou chez qui", b.lieu) { b = b.copy(lieu = it) }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Field("Prix € (facultatif)", b.prix, Modifier.weight(1f), decimal = true) { b = b.copy(prix = it) }
+                        DateField("Bue le", b.dateBue, Modifier.weight(1f)) { b = b.copy(dateBue = it) }
+                    }
+                }
+            }
             Section("Garde et service") {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Field("À boire dès (année)", b.gardeDe, Modifier.weight(1f), number = true) { b = b.copy(gardeDe = it) }
@@ -293,26 +327,21 @@ fun EditScreen(
                 Field("Température de service °C", b.temperature, number = true) { b = b.copy(temperature = it) }
                 Field("Accords mets-vins", b.accords, lines = 2) { b = b.copy(accords = it) }
             }
-            Section("Achat") {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Field("Prix €", b.prix, Modifier.weight(1f), decimal = true) { b = b.copy(prix = it) }
-                    Field("Date", b.dateAchat, Modifier.weight(1f)) { b = b.copy(dateAchat = it) }
-                }
-                Field("Lieu d'achat", b.lieu) { b = b.copy(lieu = it) }
-                if (isNew) Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Nombre de bouteilles", modifier = Modifier.weight(1f))
-                    Stepper(count) { count = it }
-                }
-            }
             Spacer(Modifier.height(20.dp))
         }
         YellowButton(
-            if (isNew && count > 1) "Ajouter $count bouteilles" else "Enregistrer",
+            if (isNew && count > 1 && !b.ailleurs) "Ajouter $count bouteilles" else if (isNew && b.ailleurs) "Continuer vers la note" else "Enregistrer",
             Modifier.fillMaxWidth().padding(14.dp), enabled = !photoBusy,
         ) {
             if (b.name.isBlank() && b.domaine.isBlank()) { toast(ctx, "Indique au moins le nom ou le domaine"); return@YellowButton }
-            val list = if (isNew) List(count) { i -> if (i == 0) b else b.asNewPurchase().copy(
-                prix = b.prix, lieu = b.lieu, dateAchat = b.dateAchat) } else listOf(b)
+            // Bue ailleurs : directement dans l'historique. Sinon, statut inchangé (cave pour une nouvelle).
+            val out = when {
+                b.ailleurs -> b.copy(status = Bottle.BUE, dateAchat = "")
+                initial.ailleurs -> b.copy(status = Bottle.CAVE, dateBue = "")
+                else -> b
+            }
+            val list = if (isNew && !out.ailleurs) List(count) { i -> if (i == 0) out else out.asNewPurchase().copy(
+                prix = out.prix, lieu = out.lieu, dateAchat = out.dateAchat) } else listOf(out)
             onSave(list, photo)
         }
     }
@@ -328,6 +357,14 @@ private fun Field(
     keyboardOptions = KeyboardOptions(
         keyboardType = when { decimal -> KeyboardType.Decimal; number -> KeyboardType.Number; else -> KeyboardType.Text },
     ),
+)
+
+/** Date libre ; vide = inconnue, avec une croix pour l'effacer. */
+@Composable
+private fun DateField(label: String, value: String, modifier: Modifier, onChange: (String) -> Unit) = OutlinedTextField(
+    value, onChange, label = { Text(label) }, modifier = modifier, singleLine = true,
+    trailingIcon = if (value.isNotBlank()) { { IconButton(onClick = { onChange("") }) { Icon(Icons.Default.Clear, "Effacer") } } } else null,
+    supportingText = if (value.isBlank()) { { Text("Inconnue") } } else null,
 )
 
 /* ---------- Dégustation ---------- */

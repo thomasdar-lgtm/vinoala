@@ -6,7 +6,7 @@ import org.junit.Test
 
 class ModelTest {
     @Test fun roundTrip() {
-        val b = Bottle(name = "Pomerol", millesime = "2018", note = "7.5", hasPhoto = true, thumb = "abc")
+        val b = Bottle(name = "Pomerol", millesime = "2018", note = "7.5", hasPhoto = true, thumb = "abc", origine = Bottle.AILLEURS)
         assertEquals(b, Bottle.fromMap(b.id, b.toMap()))
     }
 

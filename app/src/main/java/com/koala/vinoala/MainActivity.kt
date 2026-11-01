@@ -110,8 +110,10 @@ fun App(repo: Repo) {
                 onSave = { list, photo ->
                     list.forEach { repo.save(it, photo) }
                     if (list.size > 1) toast(ctx, "${list.size} bouteilles ajoutées à la cave")
-                    tab = 0
-                    screen = Screen.Detail(list.first().id)
+                    val first = list.first()
+                    tab = if (first.drunk) 1 else 0
+                    // Bue ailleurs, nouvelle fiche : on passe directement à la note
+                    screen = if (s.isNew && first.ailleurs) Screen.Taste(first.id) else Screen.Detail(first.id)
                 },
                 onBack = { back() },
             )

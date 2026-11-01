@@ -27,7 +27,9 @@ data class Bottle(
     val gardeA: String = "",
     val temperature: String = "",
     val accords: String = "",
-    // Achat
+    // Provenance : achat (vide) ou bue ailleurs (restaurant, chez des amis)
+    val origine: String = "",
+    // Achat (ou, si bue ailleurs : prix payé et lieu)
     val prix: String = "",
     val lieu: String = "",
     val dateAchat: String = "",
@@ -46,6 +48,7 @@ data class Bottle(
     val majLe: Long = System.currentTimeMillis(),
 ) {
     val drunk get() = status == BUE
+    val ailleurs get() = origine == AILLEURS
     val title get() = name.ifBlank { domaine.ifBlank { "Vin sans nom" } }
 
     fun subtitle(): String = listOf(domaine.takeIf { it != name }, appellation, millesime)
@@ -53,7 +56,7 @@ data class Bottle(
 
     /** Remet à zéro achat, dégustation et photo : sert à racheter le même vin. */
     fun asNewPurchase() = copy(
-        id = UUID.randomUUID().toString(), status = CAVE, prix = "", lieu = "", dateAchat = today(),
+        id = UUID.randomUUID().toString(), status = CAVE, origine = "", prix = "", lieu = "", dateAchat = today(),
         dateBue = "", note = "", commentaire = "", noteThomas = "", comThomas = "", noteCindy = "", comCindy = "",
         thumb = "", hasPhoto = false, creeLe = System.currentTimeMillis(), majLe = System.currentTimeMillis(),
     )
@@ -77,7 +80,7 @@ data class Bottle(
         "status" to status, "name" to name, "domaine" to domaine, "couleur" to couleur, "millesime" to millesime,
         "appellation" to appellation, "region" to region, "pays" to pays, "cepages" to cepages, "degre" to degre,
         "contenance" to contenance, "codeBarres" to codeBarres, "gardeDe" to gardeDe, "gardeA" to gardeA,
-        "temperature" to temperature, "accords" to accords, "prix" to prix, "lieu" to lieu, "dateAchat" to dateAchat,
+        "temperature" to temperature, "accords" to accords, "origine" to origine, "prix" to prix, "lieu" to lieu, "dateAchat" to dateAchat,
         "dateBue" to dateBue, "note" to note, "commentaire" to commentaire, "noteThomas" to noteThomas,
         "comThomas" to comThomas, "noteCindy" to noteCindy, "comCindy" to comCindy, "thumb" to thumb,
         "hasPhoto" to hasPhoto, "creeLe" to creeLe, "majLe" to majLe,
@@ -86,6 +89,7 @@ data class Bottle(
     companion object {
         const val CAVE = "cave"
         const val BUE = "bue"
+        const val AILLEURS = "ailleurs"
         val COULEURS = listOf("Rouge", "Blanc", "Rosé", "Effervescent", "Moelleux", "Autre")
 
         fun fromMap(id: String, m: Map<String, Any?>): Bottle {
@@ -96,7 +100,7 @@ data class Bottle(
                 couleur = s("couleur"), millesime = s("millesime"), appellation = s("appellation"),
                 region = s("region"), pays = s("pays"), cepages = s("cepages"), degre = s("degre"),
                 contenance = s("contenance"), codeBarres = s("codeBarres"), gardeDe = s("gardeDe"),
-                gardeA = s("gardeA"), temperature = s("temperature"), accords = s("accords"), prix = s("prix"),
+                gardeA = s("gardeA"), temperature = s("temperature"), accords = s("accords"), origine = s("origine"), prix = s("prix"),
                 lieu = s("lieu"), dateAchat = s("dateAchat"), dateBue = s("dateBue"), note = s("note"),
                 commentaire = s("commentaire"), noteThomas = s("noteThomas"), comThomas = s("comThomas"),
                 noteCindy = s("noteCindy"), comCindy = s("comCindy"), thumb = s("thumb"),

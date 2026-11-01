@@ -331,7 +331,13 @@ private fun BottleRow(b: Bottle, onClick: () -> Unit) {
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 4.dp)) {
                 if (b.couleur.isNotBlank()) Pill(b.couleur, couleurColor(b.couleur))
                 b.apogee()?.let { Pill(it.label, apogeeColor(it)) }
-                if (b.drunk && b.dateBue.isNotBlank()) Text("bue le ${b.dateBue}", color = Muted, fontSize = 11.sp)
+                if (b.drunk) {
+                    val txt = listOfNotNull(
+                        b.dateBue.takeIf { it.isNotBlank() }?.let { "bue le $it" },
+                        b.lieu.takeIf { b.ailleurs && it.isNotBlank() },
+                    ).joinToString(" · ")
+                    if (txt.isNotBlank()) Text(txt, color = Muted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
             }
         }
         b.score()?.let {
