@@ -66,8 +66,33 @@ import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
+import androidx.camera.core.resolutionselector.AspectRatioStrategy
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.unit.IntSize
+
+/** Position du cadre jaune et taille de l'aperçu, en pixels écran. */
+class FrameArea(val view: IntSize, val frame: Rect)
+
+/**
+ * Le code-barres est-il dans le cadre ? L'aperçu remplit l'écran (FILL_CENTER) :
+ * l'image analysée est agrandie puis centrée, on refait la même conversion.
+ */
+fun inFrame(box: android.graphics.Rect, imgW: Int, imgH: Int, area: FrameArea): Boolean {
+    val vw = area.view.width.toFloat(); val vh = area.view.height.toFloat()
+    if (vw <= 0f || vh <= 0f || imgW <= 0 || imgH <= 0) return false
+    val scale = maxOf(vw / imgW, vh / imgH)
+    val dx = (vw - imgW * scale) / 2f; val dy = (vh - imgH * scale) / 2f
+    val cx = box.exactCenterX() * scale + dx
+    val cy = box.exactCenterY() * scale + dy
+    return area.frame.contains(Offset(cx, cy))
+}
 
 private class BarcodeAnalyzer(
+    private val area: AtomicReference<FrameArea?>,
     private val onFound: (String) -> Unit,
     private val onReady: (Boolean) -> Unit,
 ) : ImageAnalysis.Analyzer {
@@ -84,11 +109,20 @@ private class BarcodeAnalyzer(
     override fun analyze(proxy: ImageProxy) {
         val media = proxy.image
         if (media == null || done) { proxy.close(); return }
-        val img = InputImage.fromMediaImage(media, proxy.imageInfo.rotationDegrees)
+        val rot = proxy.imageInfo.rotationDegrees
+        val img = InputImage.fromMediaImage(media, rot)
+        // Dimensions de l'image remise à l'endroit (coordonnées des codes trouvés)
+        val w = if (rot == 90 || rot == 270) proxy.height else proxy.width
+        val h = if (rot == 90 || rot == 270) proxy.width else proxy.height
         scanner.process(img).addOnCompleteListener { t ->
             onReady(t.isSuccessful)
-            // Ne garde qu'un code-barres valide (chiffre de contrôle), lu à l'identique sur 3 images
-            val code = if (t.isSuccessful) t.result.mapNotNull { it.rawValue?.trim() }.firstOrNull { Ean.valid(it) } else null
+            val a = area.get()
+            // Code-barres valide (chiffre de contrôle), situé dans le cadre, lu à l'identique sur 3 images
+            val code = if (t.isSuccessful && a != null) t.result.firstOrNull { bc ->
+                val v = bc.rawValue?.trim() ?: ""
+                val box = bc.boundingBox
+                Ean.valid(v) && box != null && inFrame(box, w, h, a)
+            }?.rawValue?.trim() else null
             proxy.close()
             if (code == null || done) return@addOnCompleteListener
             if (code == last) hits++ else { last = code; hits = 1 }
@@ -115,12 +149,18 @@ fun ScannerScreen(onCode: (String) -> Unit, onManual: () -> Unit, onClose: () ->
     var ready by remember { mutableStateOf(true) }
     var torch by remember { mutableStateOf(false) }
     var camera by remember { mutableStateOf<Camera?>(null) }
+    val area = remember { AtomicReference<FrameArea?>(null) }
+    var viewSize by remember { mutableStateOf(IntSize.Zero) }
+    var frameRect by remember { mutableStateOf(Rect.Zero) }
+    LaunchedEffect(viewSize, frameRect) {
+        if (viewSize != IntSize.Zero && frameRect != Rect.Zero) area.set(FrameArea(viewSize, frameRect))
+    }
     val previewView = remember { PreviewView(ctx).apply { scaleType = PreviewView.ScaleType.FILL_CENTER } }
 
     DisposableEffect(granted) {
         if (!granted) return@DisposableEffect onDispose { }
         val executor = Executors.newSingleThreadExecutor()
-        val analyzer = BarcodeAnalyzer({ code ->
+        val analyzer = BarcodeAnalyzer(area, { code ->
             if (delivered.compareAndSet(false, true)) {
                 ContextCompat.getMainExecutor(ctx).execute {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -136,13 +176,18 @@ fun ScannerScreen(onCode: (String) -> Unit, onManual: () -> Unit, onClose: () ->
             try {
                 val p = future.get()
                 provider = p
-                val preview = Preview.Builder().build().also { it.setSurfaceProvider(previewView.surfaceProvider) }
+                // Même format 4:3 pour l'aperçu et l'analyse : le cadre correspond à la même zone
+                val preview = Preview.Builder()
+                    .setResolutionSelector(ResolutionSelector.Builder().setAspectRatioStrategy(AspectRatioStrategy.RATIO_4_3_FALLBACK_AUTO_STRATEGY).build())
+                    .build().also { it.setSurfaceProvider(previewView.surfaceProvider) }
                 val analysis = ImageAnalysis.Builder()
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                     .setResolutionSelector(
-                        ResolutionSelector.Builder().setResolutionStrategy(
-                            ResolutionStrategy(Size(1280, 720), ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER)
-                        ).build()
+                        ResolutionSelector.Builder()
+                            .setAspectRatioStrategy(AspectRatioStrategy.RATIO_4_3_FALLBACK_AUTO_STRATEGY)
+                            .setResolutionStrategy(
+                                ResolutionStrategy(Size(1280, 960), ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER)
+                            ).build()
                     )
                     .build().also { it.setAnalyzer(executor, analyzer) }
                 p.unbindAll()
@@ -162,10 +207,14 @@ fun ScannerScreen(onCode: (String) -> Unit, onManual: () -> Unit, onClose: () ->
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         if (granted) {
-            AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
+            AndroidView(
+                factory = { previewView },
+                modifier = Modifier.fillMaxSize().onGloballyPositioned { viewSize = it.size },
+            )
             Box(
                 Modifier.align(Alignment.Center).fillMaxWidth(0.8f).height(150.dp)
                     .border(3.dp, Yellow, RoundedCornerShape(18.dp))
+                    .onGloballyPositioned { frameRect = it.boundsInRoot() }
             )
         } else {
             Column(
