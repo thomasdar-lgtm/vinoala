@@ -8,6 +8,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreSettings
 import com.google.firebase.firestore.ListenerRegistration
+import com.google.firebase.firestore.MetadataChanges
 import com.google.firebase.firestore.PersistentCacheSettings
 import com.google.firebase.firestore.Source
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -80,7 +81,8 @@ class Repo private constructor(private val ctx: Context) {
 
     fun listen() {
         if (reg != null || !signedIn) return
-        reg = bottles.addSnapshotListener { snap, err ->
+        // INCLUDE : être prévenu aussi quand le serveur confirme un envoi (sinon « synchro en attente » reste affiché)
+        reg = bottles.addSnapshotListener(MetadataChanges.INCLUDE) { snap, err ->
             if (err != null) {
                 _state.value = _state.value.copy(loaded = true, error = err.message)
                 return@addSnapshotListener
