@@ -61,6 +61,8 @@ dependencies {
     implementation("androidx.camera:camera-lifecycle:$camerax")
     implementation("androidx.camera:camera-view:$camerax")
     implementation("com.google.android.gms:play-services-mlkit-barcode-scanning:18.3.1")
+    // CameraX a besoin de ListenableFuture, que Firebase remplace par un module vide
+    implementation("com.google.guava:guava:33.3.1-android")
 
     implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
     implementation("com.google.firebase:firebase-auth")
